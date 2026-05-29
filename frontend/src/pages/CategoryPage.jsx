@@ -59,7 +59,7 @@ function CategoryPage() {
 
     try {
 
-      const res = await API.get("/tasks", {
+      const res = await API.get("/api/tasks", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
