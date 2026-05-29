@@ -91,7 +91,7 @@ function CategoryPage() {
     try {
 
       await API.post(
-        "/tasks",
+        "/api/tasks",
         {
           ...formData,
           category,

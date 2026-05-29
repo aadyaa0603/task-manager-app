@@ -34,7 +34,7 @@ function Register() {
       setLoading(true);
 
       const res = await API.post(
-        "/auth/register",
+        "/api/auth/register",
         formData
       );
 
