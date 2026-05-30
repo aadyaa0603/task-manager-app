@@ -527,7 +527,7 @@ function CategoryPage() {
                         {stageData.emptyText}
                       </p>
                       <p style={{ color: t.textFainter, fontSize: "10px", marginTop: "4px", marginBottom: 0 }}>
-                        Drag a task here or create one above.
+                        Create a task above.
                       </p>
                     </div>
                   )}
