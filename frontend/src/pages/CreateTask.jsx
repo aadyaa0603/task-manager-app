@@ -22,23 +22,35 @@ function CreateTask() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const createTask = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      await API.post("/api/tasks", { ...formData }); // ✅ send as-is, no conversion
-      const selectedCategory = formData.category;
-      setFormData({
-        title: "", description: "", stage: "Todo", category: "Personal", deadline: "",
-      });
-      navigate(`/dashboard/${encodeURIComponent(selectedCategory)}`);
-    } catch (error) {
-      console.log(error);
-      alert("Task Creation Failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+ const createTask = async (e) => {
+  e.preventDefault();
+
+  console.log("Sending deadline:", formData.deadline);
+  console.log("Full form data:", formData);
+
+  try {
+    setLoading(true);
+
+    await API.post("/api/tasks", { ...formData });
+
+    const selectedCategory = formData.category;
+
+    setFormData({
+      title: "",
+      description: "",
+      stage: "Todo",
+      category: "Personal",
+      deadline: "",
+    });
+
+    navigate(`/dashboard/${encodeURIComponent(selectedCategory)}`);
+  } catch (error) {
+    console.log(error);
+    alert("Task Creation Failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-6 transition duration-300">
