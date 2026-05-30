@@ -18,14 +18,6 @@ function CreateTask() {
     "Friends & Social", "Projects", "Shopping", "Events & Meetups",
   ];
 
-  // ── IST helper ───────────────────────────────────────────────────────────────
-  // datetime-local input gives IST time, convert to UTC before saving
-  const fromISTInputValue = (localStr) => {
-    if (!localStr) return "";
-    const istMs = new Date(localStr).getTime() - (330 * 60 * 1000);
-    return new Date(istMs).toISOString();
-  };
-
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -34,11 +26,7 @@ function CreateTask() {
     e.preventDefault();
     try {
       setLoading(true);
-      await API.post("/api/tasks", {
-        ...formData,
-        deadline: fromISTInputValue(formData.deadline), // ✅ convert IST → UTC
-      });
-      // ✅ removed manual Authorization header — interceptor handles it
+      await API.post("/api/tasks", { ...formData }); // ✅ send as-is, no conversion
       const selectedCategory = formData.category;
       setFormData({
         title: "", description: "", stage: "Todo", category: "Personal", deadline: "",

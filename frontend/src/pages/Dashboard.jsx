@@ -32,22 +32,17 @@ function Dashboard() {
 
   const stages = ["Todo", "In Progress", "Done"];
 
-  // ── IST helpers ─────────────────────────────────────────────────────────────
+  // ── IST display helper ───────────────────────────────────────────────────────
+  const formatIST = (utcDateStr) => {
+    if (!utcDateStr) return "";
+    return new Date(utcDateStr).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  };
+
+  // ── Edit prefill: UTC from DB → datetime-local input (show in IST) ──────────
   const toISTInputValue = (utcDateStr) => {
     if (!utcDateStr) return "";
     const istMs = new Date(utcDateStr).getTime() + (330 * 60 * 1000);
     return new Date(istMs).toISOString().slice(0, 16);
-  };
-
-  const fromISTInputValue = (localStr) => {
-    if (!localStr) return "";
-    const istMs = new Date(localStr).getTime() - (330 * 60 * 1000);
-    return new Date(istMs).toISOString();
-  };
-
-  const formatIST = (utcDateStr) => {
-    if (!utcDateStr) return "";
-    return new Date(utcDateStr).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
   };
 
   // ── Effects ─────────────────────────────────────────────────────────────────
@@ -131,7 +126,7 @@ function Dashboard() {
       description: task.description || "",
       stage: task.stage || "",
       category: task.category || "",
-      deadline: toISTInputValue(task.deadline),
+      deadline: toISTInputValue(task.deadline), // show stored UTC as IST in input
     });
   };
 
@@ -139,8 +134,8 @@ function Dashboard() {
     if (!editForm.title.trim()) { alert("Title is required."); return; }
     setEditLoading(true);
     try {
-      const payload = { ...editForm, deadline: fromISTInputValue(editForm.deadline) };
-      const res = await API.put(`/api/tasks/${editingTask._id}`, payload);
+      // ✅ send as-is — browser datetime-local is already local time
+      const res = await API.put(`/api/tasks/${editingTask._id}`, editForm);
       setTasks((prev) => prev.map((t) => (t._id === editingTask._id ? res.data : t)));
       setEditingTask(null);
     } catch (error) {
@@ -255,7 +250,9 @@ function Dashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">Deadline (IST)</label>
+                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                  Deadline (IST)
+                </label>
                 <input
                   type="datetime-local"
                   value={editForm.deadline}
@@ -285,9 +282,7 @@ function Dashboard() {
       )}
 
       {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
-      <div
-        className={`fixed top-0 left-0 h-full bg-white dark:bg-gray-800 shadow-2xl z-50 transition-all duration-300 ${sidebarOpen ? "w-72" : "w-0 overflow-hidden"}`}
-      >
+      <div className={`fixed top-0 left-0 h-full bg-white dark:bg-gray-800 shadow-2xl z-50 transition-all duration-300 ${sidebarOpen ? "w-72" : "w-0 overflow-hidden"}`}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-10">
             <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Categories</h2>
@@ -313,17 +308,10 @@ function Dashboard() {
         {/* ── Navbar ──────────────────────────────────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 shadow-lg px-8 py-5 flex items-center justify-between">
           <div className="flex items-center gap-5">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="text-4xl text-gray-700 dark:text-white hover:text-purple-500 transition"
-            >☰</button>
+            <button onClick={() => setSidebarOpen(true)} className="text-4xl text-gray-700 dark:text-white hover:text-purple-500 transition">☰</button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-                Welcome back, {user?.name}
-              </h1>
-              <p className="text-gray-500 dark:text-gray-300 mt-1">
-                Stay productive and manage tasks efficiently 🚀
-              </p>
+              <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Welcome back, {user?.name}</h1>
+              <p className="text-gray-500 dark:text-gray-300 mt-1">Stay productive and manage tasks efficiently 🚀</p>
             </div>
           </div>
 
@@ -422,11 +410,7 @@ function Dashboard() {
                     </div>
                   </div>
                   <button
-                    onClick={() => {
-                      localStorage.removeItem("token");
-                      localStorage.removeItem("user");
-                      window.location.href = "/";
-                    }}
+                    onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); window.location.href = "/"; }}
                     className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-2xl font-semibold transition"
                   >
                     Logout
@@ -466,7 +450,7 @@ function Dashboard() {
           {/* Main Grid */}
           <div className="grid lg:grid-cols-2 gap-8 mt-10">
 
-            {/* ── Tasks Panel ────────────────────────────────────────────────── */}
+            {/* Tasks Panel */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-8">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Tasks</h2>
@@ -513,19 +497,11 @@ function Dashboard() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-xl font-bold text-gray-800 dark:text-white truncate">
-                                {task.title}
-                              </h3>
-                              {isOverdue && (
-                                <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg font-bold shrink-0">Overdue</span>
-                              )}
-                              {isDueSoon && !isOverdue && (
-                                <span className="text-xs bg-orange-400 text-white px-2 py-1 rounded-lg font-bold shrink-0">Due Soon</span>
-                              )}
+                              <h3 className="text-xl font-bold text-gray-800 dark:text-white truncate">{task.title}</h3>
+                              {isOverdue && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg font-bold shrink-0">Overdue</span>}
+                              {isDueSoon && !isOverdue && <span className="text-xs bg-orange-400 text-white px-2 py-1 rounded-lg font-bold shrink-0">Due Soon</span>}
                             </div>
-                            <p className="text-gray-500 dark:text-gray-300 mt-2 text-sm line-clamp-2">
-                              {task.description}
-                            </p>
+                            <p className="text-gray-500 dark:text-gray-300 mt-2 text-sm line-clamp-2">{task.description}</p>
                           </div>
                           <span className="bg-pink-100 text-pink-600 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0">
                             {task.category}
@@ -570,7 +546,7 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* ── Calendar ───────────────────────────────────────────────────── */}
+            {/* Calendar */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl p-8">
               <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">Task Calendar</h2>
               <div className="rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -622,7 +598,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* ── Floating Add Button ───────────────────────────────────────────────── */}
+      {/* Floating Add Button */}
       <button
         onClick={() => navigate("/dashboard/create-task")}
         className="fixed bottom-6 left-6 z-50 bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-110 transition duration-300 text-white w-16 h-16 rounded-full shadow-2xl text-5xl font-light flex items-center justify-center"

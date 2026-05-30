@@ -17,19 +17,7 @@ function CategoryPage() {
     deadline: "",
   });
 
-  // ── IST helpers ─────────────────────────────────────────────────────────────
-  const toISTInputValue = (utcDateStr) => {
-    if (!utcDateStr) return "";
-    const istMs = new Date(utcDateStr).getTime() + (330 * 60 * 1000);
-    return new Date(istMs).toISOString().slice(0, 16);
-  };
-
-  const fromISTInputValue = (localStr) => {
-    if (!localStr) return "";
-    const istMs = new Date(localStr).getTime() - (330 * 60 * 1000);
-    return new Date(istMs).toISOString();
-  };
-
+  // ── Display helper (keeps correct) ──────────────────────────────────────────
   const formatIST = (utcDateStr) => {
     if (!utcDateStr) return "";
     return new Date(utcDateStr).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
@@ -71,9 +59,7 @@ function CategoryPage() {
     try {
       await API.post("/api/tasks", {
         ...formData,
-        category,
-        // convert IST input → UTC before saving
-        deadline: fromISTInputValue(formData.deadline),
+        category, // ✅ send as-is, no conversion
       });
       setFormData({ title: "", description: "", stage: "Todo", deadline: "" });
       fetchTasks();
@@ -85,10 +71,9 @@ function CategoryPage() {
   const updateTask = async () => {
     if (!formData.title.trim()) { alert("Title is required."); return; }
     try {
-      await API.put(`/api/tasks/${editingTask._id}`, { // ✅ fixed: /api/tasks
+      await API.put(`/api/tasks/${editingTask._id}`, {
         ...formData,
-        category,
-        deadline: fromISTInputValue(formData.deadline), // ✅ fixed: convert IST → UTC
+        category, // ✅ send as-is, no conversion
       });
       setEditingTask(null);
       setFormData({ title: "", description: "", stage: "Todo", deadline: "" });
@@ -101,7 +86,7 @@ function CategoryPage() {
   const deleteTask = async (id) => {
     if (!window.confirm("Delete this task? This cannot be undone.")) return;
     try {
-      await API.delete(`/api/tasks/${id}`); // ✅ fixed: /api/tasks
+      await API.delete(`/api/tasks/${id}`);
       fetchTasks();
     } catch (error) {
       console.log(error);
@@ -115,10 +100,7 @@ function CategoryPage() {
   const handleDrop = async (stage) => {
     if (!draggedTask) return;
     try {
-      await API.put(`/api/tasks/${draggedTask._id}`, { // ✅ fixed: /api/tasks
-        ...draggedTask,
-        stage,
-      });
+      await API.put(`/api/tasks/${draggedTask._id}`, { ...draggedTask, stage });
       fetchTasks();
     } catch (error) {
       console.log(error);
@@ -275,7 +257,7 @@ function CategoryPage() {
 
                       {task.deadline && (
                         <p className="text-red-500 text-sm font-semibold mt-4">
-                          📅 {formatIST(task.deadline)} {/* ✅ fixed: correct IST display */}
+                          📅 {formatIST(task.deadline)} {/* ✅ correct IST display */}
                         </p>
                       )}
 
@@ -287,7 +269,12 @@ function CategoryPage() {
                               title: task.title,
                               description: task.description,
                               stage: task.stage,
-                              deadline: toISTInputValue(task.deadline), // ✅ fixed: correct IST prefill
+                              // ✅ convert UTC from DB → local datetime-local input
+                              deadline: task.deadline
+                                ? new Date(new Date(task.deadline).getTime() + (330 * 60 * 1000))
+                                    .toISOString()
+                                    .slice(0, 16)
+                                : "",
                             });
                             window.scrollTo({ top: 0, behavior: "smooth" });
                           }}
