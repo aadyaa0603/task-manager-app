@@ -427,7 +427,7 @@ function Login() {
 
           <div className="login-stats">
             {[
-              { num: "12k+", label: "Active users" },
+             
               { num: "98%",  label: "Uptime" },
               { num: "4.9★", label: "Rating" },
             ].map((s) => (

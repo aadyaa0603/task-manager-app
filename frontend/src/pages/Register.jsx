@@ -369,8 +369,8 @@ function Register() {
           <div className="reg-features">
             {[
               { icon: "✦", text: "Smart task prioritisation" },
-              { icon: "◎", text: "Clean, distraction-free UI" },
-              { icon: "⬡", text: "Works offline, syncs instantly" },
+              { icon: "◎", text: "Clean, distraction-free UI" }
+             
             ].map((f) => (
               <div className="reg-feat" key={f.text}>
                 <div className="reg-feat-icon">{f.icon}</div>
