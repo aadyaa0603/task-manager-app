@@ -16,8 +16,6 @@ function Dashboard() {
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [taskFilter, setTaskFilter] = useState("All");
   const [darkMode, setDarkMode] = useState(localStorage.getItem("theme") === "dark");
-
-  // ── Edit modal state ────────────────────────────────────────────────────────
   const [editingTask, setEditingTask] = useState(null);
   const [editForm, setEditForm] = useState({
     title: "", description: "", stage: "", category: "", deadline: "",
@@ -34,6 +32,24 @@ function Dashboard() {
   ];
 
   const stages = ["Todo", "In Progress", "Done"];
+
+  // ── IST time helpers ────────────────────────────────────────────────────────
+  const toISTInputValue = (utcDateStr) => {
+    if (!utcDateStr) return "";
+    const istMs = new Date(utcDateStr).getTime() + (330 * 60 * 1000);
+    return new Date(istMs).toISOString().slice(0, 16);
+  };
+
+  const fromISTInputValue = (localStr) => {
+    if (!localStr) return "";
+    const istMs = new Date(localStr).getTime() - (330 * 60 * 1000);
+    return new Date(istMs).toISOString();
+  };
+
+  const formatIST = (utcDateStr) => {
+    if (!utcDateStr) return "";
+    return new Date(utcDateStr).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  };
 
   // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -60,7 +76,6 @@ function Dashboard() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  // Close edit modal on Escape
   useEffect(() => {
     const handleKey = (e) => { if (e.key === "Escape") setEditingTask(null); };
     document.addEventListener("keydown", handleKey);
@@ -104,7 +119,6 @@ function Dashboard() {
       await API.delete(`/api/tasks/${taskId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Remove from local state instantly — no full refetch needed
       setTasks((prev) => prev.filter((t) => t._id !== taskId));
       setShowNotifications((prev) => prev.filter((t) => t._id !== taskId));
     } catch (error) {
@@ -115,7 +129,7 @@ function Dashboard() {
     }
   };
 
-  // ── EDIT: open modal ────────────────────────────────────────────────────────
+  // ── EDIT ────────────────────────────────────────────────────────────────────
   const openEditModal = (task) => {
     setEditingTask(task);
     setEditForm({
@@ -123,30 +137,22 @@ function Dashboard() {
       description: task.description || "",
       stage: task.stage || "",
       category: task.category || "",
-      // Convert stored UTC date to local datetime-local format for the input
-      deadline: task.deadline
-        ? new Date(new Date(task.deadline).getTime() - new Date().getTimezoneOffset() * 60000)
-            .toISOString()
-            .slice(0, 16)
-        : "",
+      deadline: toISTInputValue(task.deadline),
     });
   };
 
-  // ── EDIT: save ──────────────────────────────────────────────────────────────
   const handleEditSave = async () => {
-    if (!editForm.title.trim()) {
-      alert("Title is required.");
-      return;
-    }
+    if (!editForm.title.trim()) { alert("Title is required."); return; }
     setEditLoading(true);
     try {
-      const res = await API.put(`/api/tasks/${editingTask._id}`, editForm, {
+      const payload = {
+        ...editForm,
+        deadline: fromISTInputValue(editForm.deadline),
+      };
+      const res = await API.put(`/api/tasks/${editingTask._id}`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Patch local state with updated task
-      setTasks((prev) =>
-        prev.map((t) => (t._id === editingTask._id ? res.data : t))
-      );
+      setTasks((prev) => prev.map((t) => (t._id === editingTask._id ? res.data : t)));
       setEditingTask(null);
     } catch (error) {
       alert("Failed to update task. Please try again.");
@@ -170,11 +176,14 @@ function Dashboard() {
 
   const selectedDateTasks = tasks.filter((task) => {
     if (!task.deadline) return false;
-    const d = new Date(task.deadline);
+    // Compare in IST
+    const istMs = new Date(task.deadline).getTime() + (330 * 60 * 1000);
+    const d = new Date(istMs);
+    const sel = new Date(selectedDate.getTime() + (330 * 60 * 1000));
     return (
-      d.getDate() === selectedDate.getDate() &&
-      d.getMonth() === selectedDate.getMonth() &&
-      d.getFullYear() === selectedDate.getFullYear()
+      d.getUTCDate() === sel.getUTCDate() &&
+      d.getUTCMonth() === sel.getUTCMonth() &&
+      d.getUTCFullYear() === sel.getUTCFullYear()
     );
   });
 
@@ -183,7 +192,6 @@ function Dashboard() {
   ).length;
   const totalBadge = overdueCount + showNotifications.length;
 
-  // ── Stage badge color ───────────────────────────────────────────────────────
   const stageBadge = (stage) => {
     if (stage === "Done") return "bg-green-100 text-green-700";
     if (stage === "In Progress") return "bg-yellow-100 text-yellow-700";
@@ -200,8 +208,6 @@ function Dashboard() {
           onClick={(e) => { if (e.target === e.currentTarget) setEditingTask(null); }}
         >
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-lg p-8">
-
-            {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Edit Task</h2>
               <button
@@ -222,14 +228,7 @@ function Dashboard() {
                   type="text"
                   value={editForm.title}
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                  className="
-                    w-full px-4 py-3 rounded-2xl
-                    bg-gray-100 dark:bg-gray-700
-                    text-gray-800 dark:text-white
-                    border border-gray-200 dark:border-gray-600
-                    focus:outline-none focus:ring-2 focus:ring-purple-400
-                    transition
-                  "
+                  className="w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
                   placeholder="Task title"
                 />
               </div>
@@ -243,63 +242,33 @@ function Dashboard() {
                   rows={3}
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  className="
-                    w-full px-4 py-3 rounded-2xl
-                    bg-gray-100 dark:bg-gray-700
-                    text-gray-800 dark:text-white
-                    border border-gray-200 dark:border-gray-600
-                    focus:outline-none focus:ring-2 focus:ring-purple-400
-                    transition resize-none
-                  "
+                  className="w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition resize-none"
                   placeholder="Task description"
                 />
               </div>
 
-              {/* Stage + Category row */}
+              {/* Stage + Category */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                    Stage
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">Stage</label>
                   <select
                     value={editForm.stage}
                     onChange={(e) => setEditForm({ ...editForm, stage: e.target.value })}
-                    className="
-                      w-full px-4 py-3 rounded-2xl
-                      bg-gray-100 dark:bg-gray-700
-                      text-gray-800 dark:text-white
-                      border border-gray-200 dark:border-gray-600
-                      focus:outline-none focus:ring-2 focus:ring-purple-400
-                      transition
-                    "
+                    className="w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
                   >
                     <option value="">Select stage</option>
-                    {stages.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
+                    {stages.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                    Category
-                  </label>
+                  <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">Category</label>
                   <select
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    className="
-                      w-full px-4 py-3 rounded-2xl
-                      bg-gray-100 dark:bg-gray-700
-                      text-gray-800 dark:text-white
-                      border border-gray-200 dark:border-gray-600
-                      focus:outline-none focus:ring-2 focus:ring-purple-400
-                      transition
-                    "
+                    className="w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
                   >
                     <option value="">Select category</option>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
+                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
@@ -307,20 +276,13 @@ function Dashboard() {
               {/* Deadline */}
               <div>
                 <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                  Deadline
+                  Deadline (IST)
                 </label>
                 <input
                   type="datetime-local"
                   value={editForm.deadline}
                   onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })}
-                  className="
-                    w-full px-4 py-3 rounded-2xl
-                    bg-gray-100 dark:bg-gray-700
-                    text-gray-800 dark:text-white
-                    border border-gray-200 dark:border-gray-600
-                    focus:outline-none focus:ring-2 focus:ring-purple-400
-                    transition
-                  "
+                  className="w-full px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
                 />
               </div>
             </div>
@@ -329,26 +291,14 @@ function Dashboard() {
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setEditingTask(null)}
-                className="
-                  flex-1 py-3 rounded-2xl
-                  bg-gray-100 dark:bg-gray-700
-                  text-gray-700 dark:text-gray-300
-                  font-semibold hover:bg-gray-200 dark:hover:bg-gray-600
-                  transition
-                "
+                className="flex-1 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEditSave}
                 disabled={editLoading}
-                className="
-                  flex-1 py-3 rounded-2xl
-                  bg-gradient-to-r from-purple-500 to-pink-500
-                  text-white font-semibold
-                  hover:opacity-90 disabled:opacity-60
-                  transition
-                "
+                className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold hover:opacity-90 disabled:opacity-60 transition"
               >
                 {editLoading ? "Saving..." : "Save Changes"}
               </button>
@@ -359,11 +309,7 @@ function Dashboard() {
 
       {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
       <div
-        className={`
-          fixed top-0 left-0 h-full bg-white dark:bg-gray-800
-          shadow-2xl z-50 transition-all duration-300
-          ${sidebarOpen ? "w-72" : "w-0 overflow-hidden"}
-        `}
+        className={`fixed top-0 left-0 h-full bg-white dark:bg-gray-800 shadow-2xl z-50 transition-all duration-300 ${sidebarOpen ? "w-72" : "w-0 overflow-hidden"}`}
       >
         <div className="p-6">
           <div className="flex items-center justify-between mb-10">
@@ -375,12 +321,7 @@ function Dashboard() {
               <button
                 key={category}
                 onClick={() => navigate(`/dashboard/${encodeURIComponent(category)}`)}
-                className="
-                  w-full text-left bg-gray-100 dark:bg-gray-700
-                  hover:bg-purple-500 hover:text-white
-                  text-gray-800 dark:text-white
-                  p-4 rounded-2xl font-semibold transition duration-300
-                "
+                className="w-full text-left bg-gray-100 dark:bg-gray-700 hover:bg-purple-500 hover:text-white text-gray-800 dark:text-white p-4 rounded-2xl font-semibold transition duration-300"
               >
                 {category}
               </button>
@@ -412,38 +353,23 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-4">
+
             {/* 🔔 Bell */}
             <div className="relative">
               <button
                 onClick={() => setShowNotifPanel(!showNotifPanel)}
-                className="
-                  relative bg-gray-200 dark:bg-gray-700
-                  text-black dark:text-white
-                  w-12 h-12 rounded-xl
-                  flex items-center justify-center text-2xl
-                  transition hover:bg-purple-100
-                "
+                className="relative bg-gray-200 dark:bg-gray-700 text-black dark:text-white w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition hover:bg-purple-100"
               >
                 🔔
                 {totalBadge > 0 && (
-                  <span className="
-                    absolute -top-1 -right-1 bg-red-500 text-white
-                    text-xs font-bold w-5 h-5 rounded-full
-                    flex items-center justify-center
-                  ">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                     {totalBadge}
                   </span>
                 )}
               </button>
 
               {showNotifPanel && (
-                <div className="
-                  absolute right-0 mt-3 w-96
-                  bg-white dark:bg-gray-800
-                  border border-gray-200 dark:border-gray-700
-                  rounded-3xl shadow-2xl p-6 z-50
-                  max-h-[500px] overflow-y-auto
-                ">
+                <div className="absolute right-0 mt-3 w-96 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-3xl shadow-2xl p-6 z-50 max-h-[500px] overflow-y-auto">
                   <div className="flex items-center justify-between mb-5">
                     <h3 className="text-xl font-bold text-gray-800 dark:text-white">Notifications</h3>
                     <button onClick={() => setShowNotifPanel(false)} className="text-gray-400 hover:text-black dark:hover:text-white text-xl">×</button>
@@ -457,9 +383,12 @@ function Dashboard() {
                           <div key={task._id} className="bg-orange-50 dark:bg-gray-700 border-l-4 border-orange-400 rounded-2xl p-4 flex items-start justify-between gap-3">
                             <div>
                               <p className="font-semibold text-gray-800 dark:text-white">{task.title}</p>
-                              <p className="text-xs text-orange-500 mt-1">Due: {new Date(task.deadline).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>
+                              <p className="text-xs text-orange-500 mt-1">Due: {formatIST(task.deadline)}</p>
                             </div>
-                            <button onClick={() => setShowNotifications(showNotifications.filter((n) => n._id !== task._id))} className="text-gray-400 hover:text-black dark:hover:text-white text-lg">×</button>
+                            <button
+                              onClick={() => setShowNotifications(showNotifications.filter((n) => n._id !== task._id))}
+                              className="text-gray-400 hover:text-black dark:hover:text-white text-lg"
+                            >×</button>
                           </div>
                         ))}
                       </div>
@@ -475,7 +404,7 @@ function Dashboard() {
                           .map((task) => (
                             <div key={task._id} className="bg-red-50 dark:bg-gray-700 border-l-4 border-red-500 rounded-2xl p-4">
                               <p className="font-semibold text-gray-800 dark:text-white">{task.title}</p>
-                              <p className="text-xs text-red-500 mt-1">Was due: {new Date(task.deadline).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>
+                              <p className="text-xs text-red-500 mt-1">Was due: {formatIST(task.deadline)}</p>
                             </div>
                           ))}
                       </div>
@@ -501,13 +430,7 @@ function Dashboard() {
             <div className="relative" ref={profileRef}>
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="
-                  w-14 h-14 rounded-full
-                  bg-gradient-to-r from-pink-500 to-purple-500
-                  text-white font-bold text-xl
-                  flex items-center justify-center
-                  shadow-xl hover:scale-105 transition duration-300
-                "
+                className="w-14 h-14 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold text-xl flex items-center justify-center shadow-xl hover:scale-105 transition duration-300"
               >
                 {user?.name?.charAt(0).toUpperCase()}
               </button>
@@ -579,13 +502,11 @@ function Dashboard() {
                   <button
                     key={tab}
                     onClick={() => setTaskFilter(tab)}
-                    className={`
-                      px-5 py-2 rounded-xl font-semibold text-sm transition
-                      ${taskFilter === tab
+                    className={`px-5 py-2 rounded-xl font-semibold text-sm transition ${
+                      taskFilter === tab
                         ? "bg-purple-500 text-white shadow"
                         : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-purple-100"
-                      }
-                    `}
+                    }`}
                   >
                     {tab === "Upcoming" ? "📅 " : tab === "Overdue" ? "🚨 " : "📋 "}{tab}
                   </button>
@@ -602,17 +523,14 @@ function Dashboard() {
                     return (
                       <div
                         key={task._id}
-                        className={`
-                          border rounded-3xl p-5 transition
-                          ${isOverdue
+                        className={`border rounded-3xl p-5 transition ${
+                          isOverdue
                             ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
                             : isDueSoon
                             ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700"
                             : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
-                          }
-                        `}
+                        }`}
                       >
-                        {/* Top row: title + badges + category */}
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -635,7 +553,6 @@ function Dashboard() {
                           </span>
                         </div>
 
-                        {/* Bottom row: stage + deadline + action buttons */}
                         <div className="flex items-center justify-between mt-5 gap-3 flex-wrap">
                           <div className="flex items-center gap-3">
                             <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${stageBadge(task.stage)}`}>
@@ -643,38 +560,24 @@ function Dashboard() {
                             </span>
                             {task.deadline && (
                               <p className={`font-semibold text-xs ${isOverdue ? "text-red-600" : "text-red-400"}`}>
-                                📅 {new Date(task.deadline).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+                                📅 {formatIST(task.deadline)}
                               </p>
                             )}
                           </div>
 
-                          {/* ✏️ Edit + 🗑️ Delete buttons */}
                           <div className="flex items-center gap-2 shrink-0">
                             <button
                               onClick={() => openEditModal(task)}
-                              className="
-                                flex items-center gap-1
-                                bg-purple-100 hover:bg-purple-200
-                                text-purple-700
-                                px-3 py-2 rounded-xl
-                                text-xs font-semibold transition
-                              "
+                              className="flex items-center gap-1 bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-xl text-xs font-semibold transition"
                             >
                               ✏️ Edit
                             </button>
                             <button
                               onClick={() => handleDelete(task._id)}
                               disabled={isDeleting}
-                              className="
-                                flex items-center gap-1
-                                bg-red-100 hover:bg-red-200
-                                text-red-600
-                                px-3 py-2 rounded-xl
-                                text-xs font-semibold transition
-                                disabled:opacity-50
-                              "
+                              className="flex items-center gap-1 bg-red-100 hover:bg-red-200 text-red-600 px-3 py-2 rounded-xl text-xs font-semibold transition disabled:opacity-50"
                             >
-                              {isDeleting ? "⏳" : "🗑️"} {isDeleting ? "Deleting..." : "Delete"}
+                              {isDeleting ? "⏳ Deleting..." : "🗑️ Delete"}
                             </button>
                           </div>
                         </div>
@@ -704,12 +607,15 @@ function Dashboard() {
                   {selectedDateTasks.length > 0 ? (
                     selectedDateTasks.map((task) => (
                       <div key={task._id} className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-2xl p-5">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="text-xl font-bold text-gray-800 dark:text-white">{task.title}</h4>
-                            <p className="text-gray-500 dark:text-gray-300 mt-1">{task.category}</p>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xl font-bold text-gray-800 dark:text-white truncate">{task.title}</h4>
+                            <p className="text-gray-500 dark:text-gray-300 mt-1 text-sm">{task.category}</p>
+                            {task.deadline && (
+                              <p className="text-xs text-red-400 mt-1">📅 {formatIST(task.deadline)}</p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 shrink-0">
                             <span className={`px-3 py-2 rounded-xl text-sm font-semibold ${stageBadge(task.stage)}`}>
                               {task.stage}
                             </span>
@@ -743,14 +649,7 @@ function Dashboard() {
       {/* ── Floating Add Button ───────────────────────────────────────────────── */}
       <button
         onClick={() => navigate("/dashboard/create-task")}
-        className="
-          fixed bottom-6 left-6 z-50
-          bg-gradient-to-r from-pink-500 to-purple-500
-          hover:scale-110 transition duration-300
-          text-white w-16 h-16 rounded-full
-          shadow-2xl text-5xl font-light
-          flex items-center justify-center
-        "
+        className="fixed bottom-6 left-6 z-50 bg-gradient-to-r from-pink-500 to-purple-500 hover:scale-110 transition duration-300 text-white w-16 h-16 rounded-full shadow-2xl text-5xl font-light flex items-center justify-center"
       >
         +
       </button>
