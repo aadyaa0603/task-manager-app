@@ -23,7 +23,6 @@ function Dashboard() {
   const [editLoading, setEditLoading] = useState(false);
   const [deleteLoadingId, setDeleteLoadingId] = useState(null);
 
-  const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user"));
 
   const categories = [
@@ -33,7 +32,7 @@ function Dashboard() {
 
   const stages = ["Todo", "In Progress", "Done"];
 
-  // ── IST time helpers ────────────────────────────────────────────────────────
+  // ── IST helpers ─────────────────────────────────────────────────────────────
   const toISTInputValue = (utcDateStr) => {
     if (!utcDateStr) return "";
     const istMs = new Date(utcDateStr).getTime() + (330 * 60 * 1000);
@@ -53,6 +52,7 @@ function Dashboard() {
 
   // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
+    const token = localStorage.getItem("token");
     if (!token) navigate("/");
     else { requestNotificationPermission(); fetchTasks(); }
   }, []);
@@ -82,16 +82,14 @@ function Dashboard() {
     return () => document.removeEventListener("keydown", handleKey);
   }, []);
 
-  // ── API helpers ─────────────────────────────────────────────────────────────
+  // ── API calls ────────────────────────────────────────────────────────────────
   const requestNotificationPermission = async () => {
     if ("Notification" in window) await Notification.requestPermission();
   };
 
   const fetchTasks = async () => {
     try {
-      const res = await API.get("/api/tasks", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await API.get("/api/tasks");
       setTasks(res.data);
 
       const reminderTasks = res.data.filter((task) => {
@@ -111,14 +109,11 @@ function Dashboard() {
     }
   };
 
-  // ── DELETE ──────────────────────────────────────────────────────────────────
   const handleDelete = async (taskId) => {
     if (!window.confirm("Delete this task? This cannot be undone.")) return;
     setDeleteLoadingId(taskId);
     try {
-      await API.delete(`/api/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await API.delete(`/api/tasks/${taskId}`);
       setTasks((prev) => prev.filter((t) => t._id !== taskId));
       setShowNotifications((prev) => prev.filter((t) => t._id !== taskId));
     } catch (error) {
@@ -129,7 +124,6 @@ function Dashboard() {
     }
   };
 
-  // ── EDIT ────────────────────────────────────────────────────────────────────
   const openEditModal = (task) => {
     setEditingTask(task);
     setEditForm({
@@ -145,13 +139,8 @@ function Dashboard() {
     if (!editForm.title.trim()) { alert("Title is required."); return; }
     setEditLoading(true);
     try {
-      const payload = {
-        ...editForm,
-        deadline: fromISTInputValue(editForm.deadline),
-      };
-      const res = await API.put(`/api/tasks/${editingTask._id}`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const payload = { ...editForm, deadline: fromISTInputValue(editForm.deadline) };
+      const res = await API.put(`/api/tasks/${editingTask._id}`, payload);
       setTasks((prev) => prev.map((t) => (t._id === editingTask._id ? res.data : t)));
       setEditingTask(null);
     } catch (error) {
@@ -162,7 +151,7 @@ function Dashboard() {
     }
   };
 
-  // ── Derived data ────────────────────────────────────────────────────────────
+  // ── Derived data ─────────────────────────────────────────────────────────────
   const now = new Date();
 
   const filteredTasks = tasks.filter((task) => {
@@ -176,7 +165,6 @@ function Dashboard() {
 
   const selectedDateTasks = tasks.filter((task) => {
     if (!task.deadline) return false;
-    // Compare in IST
     const istMs = new Date(task.deadline).getTime() + (330 * 60 * 1000);
     const d = new Date(istMs);
     const sel = new Date(selectedDate.getTime() + (330 * 60 * 1000));
@@ -201,7 +189,7 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex transition duration-300">
 
-      {/* ── Edit Modal ────────────────────────────────────────────────────────── */}
+      {/* ── Edit Modal ───────────────────────────────────────────────────────── */}
       {editingTask && (
         <div
           className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
@@ -213,13 +201,10 @@ function Dashboard() {
               <button
                 onClick={() => setEditingTask(null)}
                 className="text-gray-400 hover:text-black dark:hover:text-white text-3xl leading-none"
-              >
-                ×
-              </button>
+              >×</button>
             </div>
 
             <div className="space-y-5">
-              {/* Title */}
               <div>
                 <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">
                   Title <span className="text-red-500">*</span>
@@ -233,11 +218,8 @@ function Dashboard() {
                 />
               </div>
 
-              {/* Description */}
               <div>
-                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                  Description
-                </label>
+                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">Description</label>
                 <textarea
                   rows={3}
                   value={editForm.description}
@@ -247,7 +229,6 @@ function Dashboard() {
                 />
               </div>
 
-              {/* Stage + Category */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">Stage</label>
@@ -273,11 +254,8 @@ function Dashboard() {
                 </div>
               </div>
 
-              {/* Deadline */}
               <div>
-                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">
-                  Deadline (IST)
-                </label>
+                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">Deadline (IST)</label>
                 <input
                   type="datetime-local"
                   value={editForm.deadline}
@@ -287,7 +265,6 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setEditingTask(null)}
@@ -339,9 +316,7 @@ function Dashboard() {
             <button
               onClick={() => setSidebarOpen(true)}
               className="text-4xl text-gray-700 dark:text-white hover:text-purple-500 transition"
-            >
-              ☰
-            </button>
+            >☰</button>
             <div>
               <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
                 Welcome back, {user?.name}
@@ -447,7 +422,11 @@ function Dashboard() {
                     </div>
                   </div>
                   <button
-                    onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); window.location.href = "/"; }}
+                    onClick={() => {
+                      localStorage.removeItem("token");
+                      localStorage.removeItem("user");
+                      window.location.href = "/";
+                    }}
                     className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-2xl font-semibold transition"
                   >
                     Logout
@@ -564,7 +543,6 @@ function Dashboard() {
                               </p>
                             )}
                           </div>
-
                           <div className="flex items-center gap-2 shrink-0">
                             <button
                               onClick={() => openEditModal(task)}
@@ -622,9 +600,7 @@ function Dashboard() {
                             <button
                               onClick={() => openEditModal(task)}
                               className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-xl text-sm font-semibold transition"
-                            >
-                              ✏️
-                            </button>
+                            >✏️</button>
                             <button
                               onClick={() => handleDelete(task._id)}
                               disabled={deleteLoadingId === task._id}
