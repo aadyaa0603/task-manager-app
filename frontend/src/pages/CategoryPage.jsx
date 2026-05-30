@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import API from "../api/axios";
 
@@ -9,6 +9,7 @@ function CategoryPage() {
   const [tasks, setTasks] = useState([]);
   const [editingTask, setEditingTask] = useState(null);
   const [draggedTask, setDraggedTask] = useState(null);
+  const draggedTaskRef = useRef(null); // ref to avoid stale closure in onDrop
   const [dragOverStage, setDragOverStage] = useState(null);
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("theme") !== "light"
@@ -167,13 +168,28 @@ function CategoryPage() {
     } catch (error) { console.log(error); }
   };
 
-  const handleDragStart = (task) => setDraggedTask(task);
-  const handleDragOver = (e, stage) => { e.preventDefault(); setDragOverStage(stage); };
-  const handleDrop = async (stage) => {
-    if (!draggedTask) return;
+  const handleDragStart = (e, task) => {
+    // required for Firefox — without this, drag won't start
+    e.dataTransfer.setData("text/plain", task._id);
+    e.dataTransfer.effectAllowed = "move";
+    draggedTaskRef.current = task;  // use ref so handleDrop always has latest value
+    setDraggedTask(task);
+  };
+  const handleDragOver = (e, stage) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverStage(stage);
+  };
+  const handleDrop = async (e, stage) => {
+    e.preventDefault();
     setDragOverStage(null);
+    const task = draggedTaskRef.current; // read from ref, not stale state
+    if (!task) return;
+    if (task.stage === stage) return; // dropped on same column, do nothing
+    draggedTaskRef.current = null;
+    setDraggedTask(null);
     try {
-      await API.put(`/api/tasks/${draggedTask._id}`, { ...draggedTask, stage });
+      await API.put(`/api/tasks/${task._id}`, { ...task, stage });
       fetchTasks();
     } catch (error) { console.log(error); }
   };
@@ -385,7 +401,7 @@ function CategoryPage() {
                 key={stageData.title}
                 onDragOver={(e) => handleDragOver(e, stageData.title)}
                 onDragLeave={() => setDragOverStage(null)}
-                onDrop={() => handleDrop(stageData.title)}
+                onDrop={(e) => handleDrop(e, stageData.title)}
                 style={{
                   background: isDropTarget ? t.dropTarget : t.cardBg,
                   borderRadius: "20px",
@@ -414,7 +430,7 @@ function CategoryPage() {
                         <div
                           key={task._id}
                           draggable
-                          onDragStart={() => handleDragStart(task)}
+                          onDragStart={(e) => handleDragStart(e, task)}
                           style={{
                             borderRadius: "14px",
                             padding: "14px",
