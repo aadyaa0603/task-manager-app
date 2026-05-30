@@ -22,6 +22,21 @@ function CategoryPage() {
     if (!utcDateStr) return "";
     return new Date(utcDateStr).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
   };
+const toLocalInputValue = (utcDateStr) => {
+  if (!utcDateStr) return "";
+
+  const date = new Date(utcDateStr);
+
+  const pad = (n) => String(n).padStart(2, "0");
+
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
   // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -264,20 +279,19 @@ function CategoryPage() {
                       <div className="flex gap-3 mt-6">
                         <button
                           onClick={() => {
-                            setEditingTask(task);
-                            setFormData({
-                              title: task.title,
-                              description: task.description,
-                              stage: task.stage,
-                              // ✅ convert UTC from DB → local datetime-local input
-                              deadline: task.deadline
-                                ? new Date(new Date(task.deadline).getTime() + (330 * 60 * 1000))
-                                    .toISOString()
-                                    .slice(0, 16)
-                                : "",
-                            });
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                          }}
+  setEditingTask(task);
+
+  setFormData({
+    title: task.title,
+    description: task.description,
+    stage: task.stage,
+    deadline: task.deadline
+      ? toLocalInputValue(task.deadline)
+      : "",
+  });
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}}
                           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold transition"
                         >
                           Edit

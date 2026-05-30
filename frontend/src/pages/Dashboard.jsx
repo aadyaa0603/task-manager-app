@@ -40,10 +40,20 @@ function Dashboard() {
 
   // ── Edit prefill: UTC from DB → datetime-local input (show in IST) ──────────
   const toISTInputValue = (utcDateStr) => {
-    if (!utcDateStr) return "";
-    const istMs = new Date(utcDateStr).getTime() + (330 * 60 * 1000);
-    return new Date(istMs).toISOString().slice(0, 16);
-  };
+  if (!utcDateStr) return "";
+
+  const date = new Date(utcDateStr);
+
+  const pad = (n) => String(n).padStart(2, "0");
+
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
   // ── Effects ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -159,16 +169,16 @@ function Dashboard() {
   });
 
   const selectedDateTasks = tasks.filter((task) => {
-    if (!task.deadline) return false;
-    const istMs = new Date(task.deadline).getTime() + (330 * 60 * 1000);
-    const d = new Date(istMs);
-    const sel = new Date(selectedDate.getTime() + (330 * 60 * 1000));
-    return (
-      d.getUTCDate() === sel.getUTCDate() &&
-      d.getUTCMonth() === sel.getUTCMonth() &&
-      d.getUTCFullYear() === sel.getUTCFullYear()
-    );
-  });
+  if (!task.deadline) return false;
+
+  const d = new Date(task.deadline);
+
+  return (
+    d.getFullYear() === selectedDate.getFullYear() &&
+    d.getMonth() === selectedDate.getMonth() &&
+    d.getDate() === selectedDate.getDate()
+  );
+});
 
   const overdueCount = tasks.filter(
     (t) => t.stage !== "Done" && t.deadline && new Date(t.deadline) < now
