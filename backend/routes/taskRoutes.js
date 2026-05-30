@@ -42,14 +42,20 @@ router.post(
         deadline,
       } = req.body;
 
-      const task = await Task.create({
-        title,
-        description,
-        stage,
-        category,
-        deadline,
-        userId: req.user.id,
-      });
+      let deadlineDate = null;
+
+if (deadline) {
+  deadlineDate = new Date(deadline + ":00+05:30");
+}
+
+const task = await Task.create({
+  title,
+  description,
+  stage,
+  category,
+  deadline: deadlineDate,
+  userId: req.user.id,
+});
 
       res.status(201).json(task);
 
@@ -70,10 +76,23 @@ router.post(
 // UPDATE TASK
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
+    const task = await Task.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
+
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+const updateData = { ...req.body };
+
+if (updateData.deadline) {
+  updateData.deadline = new Date(updateData.deadline + ":00+05:30");
+}
 
     const updatedTask = await Task.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true }
     );
 
@@ -104,26 +123,6 @@ router.delete("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-router.put("/:id", authMiddleware, async (req, res) => {
 
-  try {
-
-    const updatedTask = await Task.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
-    res.json(updatedTask);
-
-  } catch (error) {
-
-    res.status(500).json({
-      message: error.message,
-    });
-
-  }
-
-});
 
 module.exports = router;
